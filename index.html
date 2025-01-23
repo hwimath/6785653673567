@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<title>휘매쓰 연산 챌린지!</title>
+<title>자연수 빼기 진분수</title>
 <!-- MathJax 라이브러리 로드 -->
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
 <style>
@@ -61,8 +61,14 @@
 </head>
 <body>
 <div class="container">
-  <h1>휘매쓰 연산 챌린지!</h1>
+  <h1>자연수 빼기 진분수</h1>
+
+  <!-- 시작 화면 -->
   <div id="start-screen">
+    <!-- (2) 이름 입력 란 -->
+    <p>
+      이름: <input type="text" id="player-name" placeholder="이름을 입력하세요"/>
+    </p>
     <p>난이도를 선택해주세요:</p>
     <div class="difficulty-select">
       <button data-difficulty="top">최상 (20초, 문제당 20점)</button>
@@ -72,6 +78,7 @@
     </div>
   </div>
   
+  <!-- 게임 화면 -->
   <div id="game-screen" class="hidden">
     <div class="energy-bar-container" id="energy-container">
       <div class="energy-bar" id="energy-bar"></div>
@@ -84,15 +91,55 @@
     <div id="message"></div>
   </div>
   
+  <!-- 종료 화면 -->
   <div id="end-screen" class="hidden">
     <h2>게임 종료!</h2>
     <p id="final-score"></p>
+    <!-- (5) 점수 전송 버튼 및 결과 표시 영역 -->
+    <button id="send-score-button">점수 전송</button>
+    <p id="response"></p>
+    <br/>
     <button id="restart-button">다시 시작</button>
   </div>
 </div>
 
-
 <script>
+  // (4) 서버로 데이터 전송 함수
+  async function saveData(game, name, score, elapsedTime) {
+      const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+      const requestData = {
+          game,
+          name,
+          score: parseInt(score, 10),
+          elapsedTime: parseInt(elapsedTime, 10)
+      };
+
+      try {
+          const response = await fetch(FUNCTION_URL, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestData)
+          });
+
+          const responseData = await response.json();
+
+          if (response.ok) {
+              document.getElementById('response').innerText = 
+                  `성공: ${JSON.stringify(responseData, null, 2)}`;
+          } else {
+              document.getElementById('response').innerText = 
+                  `오류: ${JSON.stringify(responseData, null, 2)}`;
+          }
+      } catch (error) {
+          console.error('요청 실패:', error);
+          document.getElementById('response').innerText = 
+              `네트워크 오류: ${error.message}`;
+      }
+  }
+
   // 난이도별 설정
   const difficultySettings = {
     top: {time:20, scorePerCorrect:20}, 
@@ -114,9 +161,17 @@
 
   let correctAnswerNum = null; // 정답의 분자값 (resultNum)
   let correctAnswerStr = null; // 대분수 형태 문자열
+  let playerName = '';         // 플레이어 이름
 
   document.querySelectorAll('.difficulty-select button').forEach(btn => {
     btn.addEventListener('click', () => {
+      // (2) 이름 가져오기
+      playerName = document.getElementById('player-name').value.trim();
+      if(!playerName){
+        alert('이름을 입력해주세요!');
+        return;
+      }
+
       difficulty = btn.getAttribute('data-difficulty');
       timeLimit = difficultySettings[difficulty].time;
       scorePerCorrect = difficultySettings[difficulty].scorePerCorrect;
@@ -204,6 +259,11 @@
     document.getElementById('start-screen').classList.remove('hidden');
   });
 
+  // (5) 점수 전송 버튼 이벤트
+  document.getElementById('send-score-button').addEventListener('click', () => {
+    saveData("자연수 빼기 진분수", playerName, score, totalTime);
+  });
+
   // 대분수 형태로 변환하는 함수
   function toMixedFraction(num, den){
     let whole = Math.floor(num/den);
@@ -224,14 +284,12 @@
     }
   }
 
-  // 문제 생성 로직: 자연수 - 진분수 (분모를 다양하게)
-  // integer: 1~12, denominator: 2~12, numerator:1~(denominator-1)
+  // 문제 생성 로직: 자연수 - 진분수
   function generateQuestion(){
     let integer = Math.floor(Math.random()*12) + 1; // 1~12
     let denominator = Math.floor(Math.random()*11)+2; // 2~12
     let numerator = Math.floor(Math.random()*(denominator-1))+1; // 1~(denominator-1)
 
-    // 결과 (음수 안나오게 보장됨: integer*denominator >= denominator > numerator)
     let resultNum = integer*denominator - numerator;
     let resultDen = denominator; 
     correctAnswerNum = resultNum;
@@ -240,16 +298,14 @@
     // 문제 수식 (진분수 형태로 빼기)
     let questionStr = `\\(${integer} - \\dfrac{${numerator}}{${denominator}} = \\ ? \\)`;
 
-    // 보기 생성: 정답과 다른 오답 3개
+    // 보기 생성
     let options = [resultNum];
     while(options.length<4){
-      // 오답 범위: 0 ~ integer*denominator+12 정도
       let wrong = Math.floor(Math.random()*(integer*denominator+12)); 
       if(!options.includes(wrong) && wrong>=0) {
         options.push(wrong);
       }
     }
-
     options.sort(()=>Math.random()-0.5);
 
     document.getElementById('question').innerHTML = questionStr;
@@ -289,7 +345,6 @@
       generateQuestion();
     },1000);
   }
-
 </script>
 </body>
 </html>
